@@ -127,10 +127,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            if (!isInPictureInPictureMode) {
-                binding.player.player?.pause()
-            }
+        val isInPictureInPictureMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            isInPictureInPictureMode
+        } else false
+
+        if (!isInPictureInPictureMode) {
+            binding.player.player?.pause()
         }
     }
 
