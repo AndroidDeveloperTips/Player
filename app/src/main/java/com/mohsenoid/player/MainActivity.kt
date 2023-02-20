@@ -12,10 +12,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.Player
 import com.mohsenoid.player.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -33,10 +35,47 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         val view = binding.root
         setContentView(view)
-
-        setupPlayer()
         setupPipButton()
-        setupAutoPip()
+    }
+
+    private fun setupPipButton() {
+        binding.button.isVisible = isPipSupported
+        binding.button.setOnClickListener { enterPipMode() }
+    }
+
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            enterPictureInPictureMode()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = getPipParams()
+            enterPictureInPictureMode(params)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun getPipParams(isPlaying: Boolean = false): PictureInPictureParams {
+        val rect = Rect()
+        binding.player.getGlobalVisibleRect(rect)
+
+        val builder = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(16, 9))
+            .setSourceRectHint(rect)
+            .setActions(
+                listOfNotNull(
+                    getPipAction()
+                )
+            )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(isPlaying)
+        }
+
+        return builder.build()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        setupPlayer()
     }
 
     private fun setupPlayer() {
@@ -46,62 +85,34 @@ class MainActivity : AppCompatActivity() {
         val exoPlayer = ExoPlayer.Builder(this).build().apply {
             setMediaItem(mediaItem)
             prepare()
-            play()
             repeatMode = ExoPlayer.REPEAT_MODE_ONE
+            addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    super.onIsPlayingChanged(isPlaying)
+                    setupPip(isPlaying)
+                    binding.button.isVisible = isPlaying && isPipSupported
+                }
+            })
         }
 
         binding.player.player = exoPlayer
-        binding.player.useController = false
 
         binding.title.setText(R.string.dcbln22)
     }
 
-    private fun setupPipButton() {
-        binding.button.setOnClickListener {
-            if (!isPipSupported) return@setOnClickListener
-
-            val params = getPipParams() ?: return@setOnClickListener
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                enterPictureInPictureMode(params)
-            }
-        }
-    }
-
-    private fun setupAutoPip() {
-        val params = getPipParams() ?: return
+    private fun setupPip(isPlaying: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = getPipParams(isPlaying)
             setPictureInPictureParams(params)
         }
-    }
-
-    private fun getPipParams(): PictureInPictureParams? {
-        val rect = Rect()
-        binding.player.getGlobalVisibleRect(rect)
-
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val builder = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .setSourceRectHint(rect)
-                .setActions(
-                    listOfNotNull(
-                        getPipAction()
-                    )
-                )
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                builder.setAutoEnterEnabled(true)
-            }
-
-            builder.build()
-        } else null
     }
 
     private fun getPipAction(): RemoteAction? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val actionUri = Uri.parse("https://youtube.com/AndroidDeveloperTips")
             val actionIntent = Intent(Intent.ACTION_VIEW, actionUri)
-            val actionPendingIntent = PendingIntent.getActivity(this, 0, actionIntent, PendingIntent.FLAG_IMMUTABLE)
+            val actionPendingIntent =
+                PendingIntent.getActivity(this, 0, actionIntent, PendingIntent.FLAG_IMMUTABLE)
             val remoteAction = RemoteAction(
                 Icon.createWithResource(this, R.drawable.ic_picture_in_picture_action),
                 "More info",
@@ -112,6 +123,11 @@ class MainActivity : AppCompatActivity() {
         } else null
     }
 
+    override fun onResume() {
+        super.onResume()
+        binding.player.player?.play()
+    }
+
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
@@ -119,25 +135,39 @@ class MainActivity : AppCompatActivity() {
         if (isInPictureInPictureMode) {
             binding.title.isVisible = false
             binding.button.isVisible = false
+            binding.player.useController = false
         } else {
             binding.title.isVisible = true
             binding.button.isVisible = true
+            binding.player.useController = true
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            // the PiP auto enter feature is not available and we should do it manually
+            enterPipMode()
         }
     }
 
     override fun onPause() {
         super.onPause()
-        val isInPictureInPictureMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        val isInPipMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             isInPictureInPictureMode
         } else false
 
-        if (!isInPictureInPictureMode) {
+        if (!isInPipMode) {
             binding.player.player?.pause()
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        binding.player.player?.play()
+    override fun onStop() {
+        super.onStop()
+        binding.player.player?.run {
+            stop()
+            release()
+        }
     }
 }

@@ -18,11 +18,12 @@
         android:id="@+id/button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
         android:contentDescription="@string/pip_description"
         android:padding="8dp"
         android:src="@drawable/ic_picture_in_picture"
-        app:layout_constraintBottom_toBottomOf="@+id/player"
-        app:layout_constraintEnd_toEndOf="@+id/player" />
+        app:layout_constraintEnd_toEndOf="@+id/player"
+        app:layout_constraintTop_toTopOf="@+id/player" />
 
     <TextView
         android:id="@+id/title"
