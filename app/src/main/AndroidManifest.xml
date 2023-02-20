@@ -11,10 +11,7 @@
         android:theme="@style/Theme.Player">
         <activity
             android:name=".MainActivity"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
-            android:exported="true"
-            android:supportsPictureInPicture="true"
-            tools:targetApi="n">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
